@@ -138,8 +138,11 @@ const Game = {
     this.renderAll();
   },
 
+  canvasW: 0, canvasH: 0,
   resizeCanvas() {
     const rect = this.canvas.getBoundingClientRect();
+    this.canvasW = rect.width;
+    this.canvasH = rect.height;
     this.canvas.width = rect.width * (window.devicePixelRatio || 1);
     this.canvas.height = rect.height * (window.devicePixelRatio || 1);
     this.ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
@@ -147,6 +150,7 @@ const Game = {
 
   startCanvasLoop() {
     const draw = () => {
+      this.animTime++;
       this.drawCanvas();
       requestAnimationFrame(draw);
     };
@@ -157,7 +161,18 @@ const Game = {
     const ctx = this.ctx;
     const w = this.canvas.width / (window.devicePixelRatio || 1);
     const h = this.canvas.height / (window.devicePixelRatio || 1);
-    ctx.clearRect(0, 0, w, h);
+    
+    // Screen shake
+    let sx = 0, sy = 0;
+    if (this.screenShake > 0) {
+      sx = (Math.random() - 0.5) * this.screenShake * 2;
+      sy = (Math.random() - 0.5) * this.screenShake * 2;
+      this.screenShake -= 0.5;
+    }
+    
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.clearRect(-10, -10, w + 20, h + 20);
 
     // Background image
     if (this.images['background'] && this.images['background'].complete) {
@@ -199,62 +214,106 @@ const Game = {
     ctx.lineTo(w, h-50);
     ctx.stroke();
 
-    // Cats (use generated images)
+    // Cats (with animations)
     this.cats.forEach((cat, i) => {
       const alive = cat.hp > 0;
-      const x = 50 + i * 140;
-      const y = h - 100;
-      ctx.globalAlpha = alive ? 1 : 0.3;
+      let ox = 50 + i * 140;
+      let oy = h - 100;
+      
+      // Init animation state
+      if (!this.animStates[cat.id]) this.animStates[cat.id] = { attack: 0, hit: 0, idle: Math.random() * Math.PI * 2 };
+      const anim = this.animStates[cat.id];
+      
+      // Idle bobbing
+      const idleY = Math.sin(this.animTime * 0.05 + anim.idle) * 3;
+      oy += idleY;
+      
+      // Attack lunge
+      if (anim.attack > 0) {
+        ox += anim.attack * 8;
+        anim.attack -= 0.15;
+        if (anim.attack < 0) anim.attack = 0;
+      }
+      
+      // Hit shake
+      if (anim.hit > 0) {
+        ox += Math.sin(anim.hit * 15) * 5;
+        anim.hit -= 0.2;
+        if (anim.hit < 0) anim.hit = 0;
+      }
+      
+      ctx.globalAlpha = alive ? 1 : 0.2;
+      
+      // Death animation
+      if (!alive) {
+        oy += (1 - ctx.globalAlpha) * 30;
+      }
 
       // Cat image
-      const imgKey = cat.cls; // 'warrior', 'mage', 'ninja'
+      const imgKey = cat.cls;
       const img = this.images[imgKey];
       if (img && img.complete) {
         const size = 60;
-        ctx.drawImage(img, x - size/2, y - size/2, size, size);
+        // Hit flash
+        if (anim.hit > 0.5) {
+          ctx.globalAlpha = 1;
+          ctx.drawImage(img, ox - size/2, oy - size/2, size, size);
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = 'rgba(255,255,255,' + (anim.hit * 0.7) + ')';
+          ctx.fillRect(ox - size/2, oy - size/2, size, size);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.drawImage(img, ox - size/2, oy - size/2, size, size);
       } else {
-        // Fallback: colored circle
         const cls = this.classes[cat.cls];
         ctx.fillStyle = cls.color;
         ctx.beginPath();
-        ctx.arc(x, y, 22, 0, Math.PI * 2);
+        ctx.arc(ox, oy, 22, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.font = '14px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(cls.icon || '?', x, y + 5);
+        ctx.fillText(cls.icon || '?', ox, oy + 5);
       }
 
       // Name
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = '#fff';
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(cat.name, x, y + 38);
+      ctx.fillText(cat.name, ox, oy + 38);
 
       // HP bar
       if (alive) {
         const barW = 70;
         ctx.fillStyle = '#333';
-        ctx.fillRect(x - barW/2, y + 40, barW, 5);
+        ctx.fillRect(ox - barW/2, oy + 40, barW, 5);
         const hpColor = cat.hp < cat.maxHp*0.3 ? '#ff6b6b' : '#4caf50';
         ctx.fillStyle = hpColor;
-        ctx.fillRect(x - barW/2, y + 40, barW * (cat.hp/cat.maxHp), 5);
+        ctx.fillRect(ox - barW/2, oy + 40, barW * (cat.hp/cat.maxHp), 5);
       }
 
       // Level
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = '#aaa';
       ctx.font = '10px sans-serif';
-      ctx.fillText('Lv.' + cat.level + (cat.evolved ? '*' : ''), x, y + 52);
+      ctx.fillText('Lv.' + cat.level + (cat.evolved ? '*' : ''), ox, oy + 52);
 
       // Skill ready sparkle
       if (alive && cat.skillReady) {
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#ffd700';
-        ctx.font = '14px sans-serif';
-        ctx.fillText('*', x + 22, y - 22);
-        ctx.fillText('*', x - 22, y - 20);
+        const sparkleSize = 12 + Math.sin(this.animTime * 0.1) * 2;
+        ctx.font = sparkleSize + 'px sans-serif';
+        ctx.fillText('*', ox + 22, oy - 22);
+        ctx.fillText('*', ox - 22, oy - 20);
       }
 
       ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
     });
 
     // Enemy
@@ -312,6 +371,11 @@ const Game = {
   },
 
   enemyFlash: 0,
+  animTime: 0,
+  animStates: {},    // per-cat animation states
+  skillEffects: [],  // active skill visual effects
+  floatingTexts: [], // damage numbers
+  screenShake: 0,
 
   spawnEnemy() {
     const tier = Math.min(Math.floor((this.wave-1)/3), this.enemies.length-1);
@@ -366,6 +430,8 @@ const Game = {
 
     // Cats attack
     aliveCats.forEach(cat => {
+      // Trigger attack animation
+      if (this.animStates[cat.id]) this.animStates[cat.id].attack = 1.0;
       const dmg = Math.max(1, cat.atk - this.enemy.def + Math.floor(Math.random()*5));
       this.enemy.hp -= dmg;
       this.enemyFlash = 3;
@@ -381,6 +447,8 @@ const Game = {
     const target = aliveCats[Math.floor(Math.random() * aliveCats.length)];
     const dmg = Math.max(1, this.enemy.atk - target.def + Math.floor(Math.random()*3));
     target.hp = Math.max(0, target.hp - dmg);
+    // Trigger hit animation
+    if (this.animStates[target.id]) this.animStates[target.id].hit = 1.0;
     this.showDamage(dmg, true);
   },
 
@@ -475,9 +543,32 @@ const Game = {
     if (this.enemy && this.enemy.hp > 0) {
       this.enemy.hp = Math.max(0, this.enemy.hp - dmg);
       this.enemyFlash = 5;
+      this.screenShake = 4;
+      // Spawn skill particles
+      for (let p = 0; p < 12; p++) {
+        const angle = (Math.PI * 2 / 12) * p;
+        this.skillEffects.push({
+          x: (this.canvasW || 350) - 70, y: (this.canvasH || 280) - 100,
+          vx: Math.cos(angle) * (2 + Math.random() * 4),
+          vy: Math.sin(angle) * (2 + Math.random() * 4),
+          life: 20 + Math.random() * 15,
+          maxLife: 35,
+          size: 3 + Math.random() * 4,
+          color: cls.color.replace('#', 'rgba(') + ',1)'.replace('rgba(ff', 'rgba(255,').replace('rgba(a8', 'rgba(168,').replace('rgba(4e', 'rgba(78,')
+        });
+      }
+      // Fix color format
+      this.skillEffects.forEach(e => {
+        const hex = e.color.match(/[0-9a-f]{2}/gi);
+        if (hex && hex.length >= 3) {
+          e.color = 'rgba(' + parseInt(hex[0],16) + ',' + parseInt(hex[1],16) + ',' + parseInt(hex[2],16) + ',1)';
+        }
+      });
       this.showDamage(dmg, false);
       cat.skillReady = false;
       cat.skillCd = cls.skill.cdMax;
+      // Trigger attack anim
+      if (this.animStates[cat.id]) this.animStates[cat.id].attack = 1.5;
 
       if (this.enemy.hp <= 0) {
         this.onEnemyKilled();
