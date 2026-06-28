@@ -51,7 +51,11 @@ body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;d
     <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-size:12px;color:#aaa">CAT LEGION</div>
-        <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> - Kills <span id="kills">0</span> · Prestige <span id="prestige">0</span></div>
+        <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> · Kills <span id="kills">0</span> · Prestige <span id="prestige">0</span></div>
+        <div style="margin-top:6px;height:6px;background:#333;border-radius:3px;overflow:hidden">
+          <div id="progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#a855f7,#ffd700);border-radius:3px;transition:width 0.5s"></div>
+        </div>
+        <div style="font-size:9px;color:#666;margin-top:2px">Progresso: <span id="progress-text">Wave 1/5</span> · Proximo heroi: Wave <span id="next-hero">3</span></div>
       </div>
       <div class="gold-display"><span id="gold">0</span> Gold</div>
     </div>
