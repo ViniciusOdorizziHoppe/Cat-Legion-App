@@ -155,6 +155,24 @@ const Game = {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, w, h);
 
+    // Floating ambient particles
+    if (!this._particles) this._particles = [];
+    if (this._particles.length < 15 && Math.random() < 0.5) {
+      this._particles.push({
+        x: Math.random() * w, y: h - 60 + Math.random() * 40,
+        life: 60 + Math.random() * 60, maxLife: 120,
+        vy: -0.3 - Math.random() * 0.5
+      });
+    }
+    this._particles = this._particles.filter(p => p.life > 0);
+    this._particles.forEach(p => {
+      p.y += p.vy;
+      p.life--;
+      const alpha = p.life / p.maxLife;
+      ctx.fillStyle = 'rgba(255,215,0,' + (alpha * 0.3) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+    });
+
     // Ground
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, h-50, w, 50);
@@ -263,6 +281,13 @@ const Game = {
       ctx.textAlign = 'center';
       ctx.fillText(this.enemy.name, ex, ey + 42);
 
+      // Hit particles when enemy damaged
+      if (this.enemyFlash > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath(); ctx.arc(ex, ey, 28, 0, Math.PI*2); ctx.fill();
+        this.enemyFlash--;
+      }
+
       // HP bar
       const barW = 90;
       ctx.fillStyle = '#333';
@@ -272,6 +297,8 @@ const Game = {
       ctx.fillRect(ex - barW/2, ey + 48, barW * hpRatio, 7);
     }
   },
+
+  enemyFlash: 0,
 
   spawnEnemy() {
     const tier = Math.min(Math.floor((this.wave-1)/3), this.enemies.length-1);
@@ -328,6 +355,7 @@ const Game = {
     aliveCats.forEach(cat => {
       const dmg = Math.max(1, cat.atk - this.enemy.def + Math.floor(Math.random()*5));
       this.enemy.hp -= dmg;
+      this.enemyFlash = 3;
       this.showDamage(dmg, false);
     });
 
@@ -433,6 +461,7 @@ const Game = {
 
     if (this.enemy && this.enemy.hp > 0) {
       this.enemy.hp = Math.max(0, this.enemy.hp - dmg);
+      this.enemyFlash = 5;
       this.showDamage(dmg, false);
       cat.skillReady = false;
       cat.skillCd = cls.skill.cdMax;
