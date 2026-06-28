@@ -1,0 +1,8 @@
+{
+  "appId": "com.catlegion.app",
+  "appName": "Cat Legion",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https"
+  }
+}

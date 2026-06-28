@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cat Legion</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow-x:hidden}
+#app{width:100%;max-width:420px;min-height:100vh;background:linear-gradient(180deg,#1a0a2e 0%,#0d1b3e 50%,#0a0a1a 100%);position:relative;overflow:hidden}
+#game-canvas{width:100%;height:280px;background:linear-gradient(180deg,#2d1b4e 0%,#1a0a2e 100%);display:block}
+#ui{padding:12px 16px}
+.panel{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px;margin-bottom:10px;backdrop-filter:blur(12px)}
+.cat-row{display:flex;gap:8px;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:all 0.2s}
+.cat-row:hover{background:rgba(255,255,255,0.08)}
+.cat-row.selected{border:2px solid #ffd700;background:rgba(255,215,0,0.1)}
+.cat-icon{font-size:36px;width:50px;text-align:center}
+.cat-info{flex:1}
+.cat-name{font-weight:bold;font-size:14px}
+.cat-stats{font-size:11px;color:#aaa}
+.cat-hp-bar{height:4px;background:#333;border-radius:2px;margin-top:4px}
+.cat-hp-fill{height:100%;background:#4caf50;border-radius:2px;transition:width 0.3s}
+.enemy-section{text-align:center;padding:16px 0}
+.enemy-name{font-size:18px;font-weight:bold;color:#ff6b6b;margin-bottom:4px}
+.enemy-hp{font-size:12px;color:#aaa}
+.gold-display{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:bold;color:#ffd700}
+.btn{background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;transition:all 0.2s;width:100%}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(168,85,247,0.4)}
+.btn:active{transform:scale(0.97)}
+.btn-sm{padding:6px 12px;font-size:12px;width:auto}
+.btn-danger{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.btn-gold{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.tabs{display:flex;gap:4px;margin-bottom:10px}
+.tab{flex:1;padding:8px;text-align:center;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:bold;transition:0.2s}
+.tab.active{background:rgba(168,85,247,0.2);border-color:#a855f7}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.damage-pop{position:absolute;font-weight:bold;font-size:16px;pointer-events:none;animation:popUp 1s ease-out forwards}
+@keyframes popUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-40px)}}
+.shake{animation:shake 0.3s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.gold-gain{position:absolute;color:#ffd700;font-weight:bold;font-size:14px;pointer-events:none;animation:floatUp 1.5s ease-out forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-60px)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game-canvas"></canvas>
+  <div id="ui">
+    <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:12px;color:#aaa">CAT LEGION</div>
+        <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> - Kills <span id="kills">0</span></div>
+      </div>
+      <div class="gold-display"><span id="gold">0</span> Gold</div>
+    </div>
+    <div id="enemy-section" class="enemy-section">
+      <div class="enemy-name" id="enemy-name">Rato Selvagem</div>
+      <div style="width:200px;height:10px;background:#333;border-radius:5px;margin:8px auto">
+        <div id="enemy-hp-fill" style="width:100%;height:100%;background:#ff6b6b;border-radius:5px;transition:width 0.3s"></div>
+      </div>
+      <div class="enemy-hp" id="enemy-hp-text">100/100</div>
+    </div>
+    <div id="cats-container"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn" onclick="Game.startWave()" id="btn-wave">Iniciar Wave</button>
+    </div>
+    <div class="tabs" style="margin-top:12px">
+      <div class="tab active" onclick="Game.switchTab('team')">Time</div>
+      <div class="tab" onclick="Game.switchTab('shop')">Loja</div>
+      <div class="tab" onclick="Game.switchTab('inventory')">Inventario</div>
+    </div>
+    <div id="tab-team" class="tab-content active panel"></div>
+    <div id="tab-shop" class="tab-content panel"></div>
+    <div id="tab-inventory" class="tab-content panel"></div>
+  </div>
+</div>
+<div id="damage-pop-container" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999"></div>
+
+<script>
+// ==================== CAT LEGION ENGINE ====================
+const Game = {
+  gold: 0, wave: 1, kills: 0, autoAttack: null, selectedCat: null,
+
+  classes: {
+    warrior: {name:'Guerreiro',icon:'Warrior',hp:150,atk:18,def:8,spd:10,color:'#ff6b6b',
+      skill:{name:'Garra Feroz',dmg:2.5,cd:3,cdMax:3,desc:'Ataque devastador (2.5x)'}},
+    mage:    {name:'Mago',icon:'Mage',hp:90,atk:28,def:4,spd:8,color:'#a855f7',
+      skill:{name:'Bola de Fogo',dmg:3.5,cd:4,cdMax:4,desc:'Explosao magica (3.5x)'}},
+    ninja:   {name:'Ninja',icon:'Ninja',hp:110,atk:22,def:5,spd:15,color:'#4ecdc4',
+      skill:{name:'Lamina Sombria',dmg:3.0,cd:3,cdMax:3,desc:'Golpe critico (3x)'}}
+  },
+
+  cats: [
+    {id:0,cls:'warrior',level:1,xp:0,name:'Tigrao',hp:150,maxHp:150,atk:18,def:8,spd:10,equipment:{weapon:null,armor:null,accessory:null},evolved:false},
+    {id:1,cls:'mage',level:1,xp:0,name:'Merlin',hp:90,maxHp:90,atk:28,def:4,spd:8,equipment:{weapon:null,armor:null,accessory:null},evolved:false},
+    {id:2,cls:'ninja',level:1,xp:0,name:'Shadow',hp:110,maxHp:110,atk:22,def:5,spd:15,equipment:{weapon:null,armor:null,accessory:null},evolved:false}
+  ],
+
+  enemy: null,
+
+  enemies: [
+    {name:'Rato Selvagem',hp:40,atk:5,def:1,gold:5,xp:3},
+    {name:'Morcego Sombrio',hp:55,atk:7,def:2,gold:8,xp:5},
+    {name:'Lobo Sombrio',hp:90,atk:10,def:4,gold:15,xp:10},
+    {name:'Espectro',hp:130,atk:14,def:6,gold:22,xp:18},
+    {name:'Dragaozinho',hp:200,atk:20,def:10,gold:40,xp:35},
+    {name:'BOSS Gato Zumbi',hp:350,atk:28,def:15,gold:80,xp:70},
+  ],
+
+  init() {
+    this.loadGame();
+    this.renderAll();
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.resizeCanvas();
+    window.addEventListener('resize', () => this.resizeCanvas());
+    this.startCanvasLoop();
+    this.spawnEnemy();
+    this.renderAll();
+  },
+
+  resizeCanvas() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.canvas.width = rect.width * (window.devicePixelRatio || 1);
+    this.canvas.height = rect.height * (window.devicePixelRatio || 1);
+    this.ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  },
+
+  startCanvasLoop() {
+    const draw = () => {
+      this.drawCanvas();
+      requestAnimationFrame(draw);
+    };
+    draw();
+  },
+
+  drawCanvas() {
+    const ctx = this.ctx;
+    const w = this.canvas.width / (window.devicePixelRatio || 1);
+    const h = this.canvas.height / (window.devicePixelRatio || 1);
+    ctx.clearRect(0, 0, w, h);
+
+    // Sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h-40);
+    skyGrad.addColorStop(0, '#1a0a2e');
+    skyGrad.addColorStop(0.5, '#2d1b4e');
+    skyGrad.addColorStop(1, '#0d1b3e');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Ground
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, h-50, w, 50);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h-50);
+    ctx.lineTo(w, h-50);
+    ctx.stroke();
+
+    // Cats (draw as colored circles with initials)
+    this.cats.forEach((cat, i) => {
+      const alive = cat.hp > 0;
+      const x = 50 + i * 140;
+      const y = h - 90;
+      const cls = this.classes[cat.cls];
+      ctx.globalAlpha = alive ? 1 : 0.3;
+
+      // Cat body
+      ctx.fillStyle = cls.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cat ears
+      ctx.beginPath();
+      ctx.moveTo(x-15, y-10);
+      ctx.lineTo(x-8, y-30);
+      ctx.lineTo(x-2, y-10);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x+2, y-10);
+      ctx.lineTo(x+8, y-30);
+      ctx.lineTo(x+15, y-10);
+      ctx.fill();
+
+      // Eyes
+      if (alive) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x-7, y-3, 4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x+7, y-3, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(x-7, y-3, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x+7, y-3, 2, 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('X X', x, y);
+      }
+
+      // Name
+      ctx.fillStyle = '#fff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(cat.name, x, y + 35);
+
+      // HP bar
+      if (alive) {
+        const barW = 70;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x - barW/2, y + 40, barW, 5);
+        const hpColor = cat.hp < cat.maxHp*0.3 ? '#ff6b6b' : '#4caf50';
+        ctx.fillStyle = hpColor;
+        ctx.fillRect(x - barW/2, y + 40, barW * (cat.hp/cat.maxHp), 5);
+      }
+
+      // Level
+      ctx.fillStyle = '#aaa';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('Lv.' + cat.level + (cat.evolved ? '*' : ''), x, y + 52);
+
+      // Skill ready sparkle
+      if (alive && cat.skillReady) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('*', x + 22, y - 22);
+        ctx.fillText('*', x - 22, y - 20);
+      }
+
+      ctx.globalAlpha = 1;
+    });
+
+    // Enemy
+    if (this.enemy && this.enemy.hp > 0) {
+      const ex = w - 70;
+      const ey = h - 100;
+
+      // Enemy body
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Enemy eyes
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(ex-8, ey-5, 5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex+8, ey-5, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(ex-8, ey-5, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex+8, ey-5, 3, 0, Math.PI*2); ctx.fill();
+
+      // Enemy name
+      ctx.fillStyle = '#ff6b6b';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.enemy.name, ex, ey + 42);
+
+      // HP bar
+      const barW = 90;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(ex - barW/2, ey + 48, barW, 7);
+      const hpRatio = this.enemy.hp / this.enemy.maxHp;
+      ctx.fillStyle = hpRatio < 0.3 ? '#ff4444' : '#ff6b6b';
+      ctx.fillRect(ex - barW/2, ey + 48, barW * hpRatio, 7);
+    }
+  },
+
+  spawnEnemy() {
+    const tier = Math.min(Math.floor((this.wave-1)/3), this.enemies.length-1);
+    const template = this.enemies[tier];
+    const scale = 1 + (this.wave-1) * 0.15;
+    this.enemy = {
+      name: template.name,
+      hp: Math.floor(template.hp * scale),
+      maxHp: Math.floor(template.hp * scale),
+      atk: Math.floor(template.atk * scale),
+      def: Math.floor(template.def * scale),
+      gold: Math.floor(template.gold * scale),
+      xp: Math.floor(template.xp * scale),
+    };
+    this.renderEnemy();
+    this.saveGame();
+  },
+
+  startWave() {
+    if (this.autoAttack) clearInterval(this.autoAttack);
+    if (!this.enemy || this.enemy.hp <= 0) this.spawnEnemy();
+
+    const aliveCats = this.cats.filter(c => c.hp > 0);
+    if (aliveCats.length === 0) { this.showMessage('Todos os gatos morreram! Reviva-os na loja.'); return; }
+
+    this.autoAttack = setInterval(() => {
+      this.combatTick();
+      this.tickSkills();
+      this.renderAll();
+    }, 1500);
+
+    document.getElementById('btn-wave').textContent = 'Em combate...';
+    document.getElementById('btn-wave').disabled = true;
+    setTimeout(() => {
+      document.getElementById('btn-wave').textContent = 'Iniciar Wave';
+      document.getElementById('btn-wave').disabled = false;
+    }, 1200);
+  },
+
+  combatTick() {
+    if (!this.enemy || this.enemy.hp <= 0) {
+      this.onEnemyKilled();
+      return;
+    }
+
+    const aliveCats = this.cats.filter(c => c.hp > 0);
+    if (aliveCats.length === 0) {
+      clearInterval(this.autoAttack);
+      this.autoAttack = null;
+      return;
+    }
+
+    // Cats attack
+    aliveCats.forEach(cat => {
+      const dmg = Math.max(1, cat.atk - this.enemy.def + Math.floor(Math.random()*5));
+      this.enemy.hp -= dmg;
+      this.showDamage(dmg, false);
+    });
+
+    if (this.enemy.hp <= 0) {
+      this.onEnemyKilled();
+      return;
+    }
+
+    // Enemy attacks
+    const target = aliveCats[Math.floor(Math.random() * aliveCats.length)];
+    const dmg = Math.max(1, this.enemy.atk - target.def + Math.floor(Math.random()*3));
+    target.hp = Math.max(0, target.hp - dmg);
+    this.showDamage(dmg, true);
+  },
+
+  onEnemyKilled() {
+    clearInterval(this.autoAttack);
+    this.autoAttack = null;
+    const reward = this.enemy.gold;
+    this.gold += reward;
+    this.kills++;
+
+    // Gold float animation
+    this.showGoldGain(reward);
+
+    // XP to alive cats
+    this.cats.forEach(c => {
+      if (c.hp > 0) {
+        c.xp += this.enemy.xp;
+        this.checkLevelUp(c);
+      }
+    });
+
+    // Drop chance
+    if (Math.random() < 0.3) {
+      const drop = this.generateDrop();
+      this.addToInventory(drop);
+      this.showMessage('Item dropado: ' + drop.name + '!');
+    }
+
+    this.enemy = null;
+    this.wave++;
+    this.renderAll();
+    this.saveGame();
+    this.spawnEnemy();
+
+    // Auto-start next wave
+    setTimeout(() => this.startWave(), 1000);
+  },
+
+  generateDrop(type) {
+    const types = ['weapon','armor','accessory'];
+    if (!type) type = types[Math.floor(Math.random()*3)];
+    const tier = Math.min(Math.floor((this.wave-1)/5) + 1, 10);
+    const prefixes = ['Comum','Incomum','Raro','Epico','Lendario'];
+    const prefix = prefixes[Math.min(Math.floor(tier/3), 4)];
+    const names = {
+      weapon: ['Espada','Cajado','Adaga','Lamina','Machado'],
+      armor: ['Colete','Armadura','Manto','Peitoral','Escudo'],
+      accessory: ['Anel','Amuleto','Colar','Broche','Alianca']
+    };
+
+    return {
+      type, tier, prefix,
+      name: prefix + ' ' + names[type][Math.floor(Math.random()*5)],
+      atk: type==='weapon' ? tier*3 : 0,
+      def: type==='armor' ? tier*2 : type==='accessory' ? tier : 0,
+      hp: type==='armor' ? tier*8 : type==='accessory' ? tier*4 : 0,
+    };
+  },
+
+  checkLevelUp(cat) {
+    const xpNeeded = cat.level * 50 + Math.floor(Math.pow(cat.level, 1.8) * 10);
+    while (cat.xp >= xpNeeded) {
+      cat.level++;
+      cat.xp -= xpNeeded;
+      cat.maxHp += 15;
+      cat.hp = cat.maxHp;
+      cat.atk += 3;
+      cat.def += 1;
+      cat.spd += 1;
+      this.showMessage(cat.name + ' subiu para nivel ' + cat.level + '!');
+
+      // Evolution at lv20
+      if (cat.level >= 20 && !cat.evolved) {
+        cat.evolved = true;
+        cat.maxHp += 50;
+        cat.atk += 10;
+        cat.def += 5;
+        this.showMessage(cat.name + ' EVOLUIU! ***');
+      }
+    }
+  },
+
+  useSkill(catIndex) {
+    const cat = this.cats[catIndex];
+    if (cat.hp <= 0 || !cat.skillReady) return;
+
+    const cls = this.classes[cat.cls];
+    const bonus = cat.evolved ? 1.5 : 1.0;
+    const multiplier = cls.skill.dmg + bonus;
+    const dmg = Math.floor(cat.atk * multiplier);
+
+    if (this.enemy && this.enemy.hp > 0) {
+      this.enemy.hp = Math.max(0, this.enemy.hp - dmg);
+      this.showDamage(dmg, false);
+      cat.skillReady = false;
+      cat.skillCd = cls.skill.cdMax;
+
+      if (this.enemy.hp <= 0) {
+        this.onEnemyKilled();
+      }
+    }
+  },
+
+  tickSkills() {
+    this.cats.forEach(cat => {
+      if (!cat.skillReady && cat.skillCd !== undefined) {
+        cat.skillCd--;
+        if (cat.skillCd <= 0) {
+          cat.skillReady = true;
+          cat.skillCd = undefined;
+        }
+      }
+    });
+  },
+
+  showDamage(dmg, isPlayer) {
+    const container = document.getElementById('damage-pop-container');
+    const el = document.createElement('div');
+    el.className = 'damage-pop';
+    el.textContent = (isPlayer ? '- ' : '') + dmg;
+    el.style.color = isPlayer ? '#ff6b6b' : '#ffd700';
+    el.style.left = (80 + Math.random() * 250) + 'px';
+    el.style.top = (80 + Math.random() * 120) + 'px';
+    el.style.fontSize = (14 + Math.min(dmg/3, 10)) + 'px';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  },
+
+  showGoldGain(amount) {
+    const container = document.getElementById('damage-pop-container');
+    const el = document.createElement('div');
+    el.className = 'gold-gain';
+    el.textContent = '+' + amount + ' G';
+    el.style.left = (140 + Math.random() * 150) + 'px';
+    el.style.top = '60px';
+    el.style.fontSize = '18px';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+  },
+
+  showMessage(msg) {
+    const container = document.getElementById('damage-pop-container');
+    const el = document.createElement('div');
+    el.className = 'damage-pop';
+    el.textContent = msg;
+    el.style.color = '#ffd700';
+    el.style.left = '50%';
+    el.style.top = '35%';
+    el.style.transform = 'translateX(-50%)';
+    el.style.fontSize = '16px';
+    el.style.fontWeight = 'bold';
+    el.style.animation = 'popUp 2.5s ease-out forwards';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  },
+
+  equipItem(catIndex, item) {
+    const cat = this.cats[catIndex];
+    const slot = item.type;
+    const old = cat.equipment[slot];
+    if (old) {
+      cat.atk -= old.atk || 0;
+      cat.def -= old.def || 0;
+      cat.maxHp -= old.hp || 0;
+      cat.hp = Math.min(cat.hp, cat.maxHp);
+    }
+    cat.equipment[slot] = item;
+    cat.atk += item.atk || 0;
+    cat.def += item.def || 0;
+    cat.maxHp += item.hp || 0;
+    cat.hp = Math.min(cat.hp + (item.hp || 0), cat.maxHp);
+    this.renderAll();
+    this.saveGame();
+  },
+
+  // ==================== UI RENDERING ====================
+  renderCats() {
+    const container = document.getElementById('cats-container');
+    container.innerHTML = this.cats.map((cat, i) => {
+      const color = this.classes[cat.cls].color;
+      const hpPct = Math.round(cat.hp / cat.maxHp * 100);
+      const skillStatus = cat.skillReady ? 'Pronta!' : (cat.skillCd !== undefined ? cat.skillCd + 's' : 'Pronta!');
+      return '<div class="cat-row' + (this.selectedCat === i ? ' selected' : '') + '" ' +
+        'onclick="Game.selectedCat=' + i + ';Game.renderAll()" ' +
+        'style="border-left:3px solid ' + color + '">' +
+        '<div class="cat-icon" style="color:' + color + ';font-size:28px">' +
+        (cat.cls === 'warrior' ? 'W' : cat.cls === 'mage' ? 'M' : 'N') + '</div>' +
+        '<div class="cat-info">' +
+        '<div class="cat-name">' + cat.name + ' <span style="font-size:10px;color:#888">Nv.' + cat.level + (cat.evolved ? '*' : '') + '</span></div>' +
+        '<div class="cat-stats">ATK:' + cat.atk + ' DEF:' + cat.def + ' SPD:' + cat.spd + '</div>' +
+        '<div class="cat-hp-bar"><div class="cat-hp-fill" style="width:' + hpPct + '%;background:' + (hpPct<30?'#ff6b6b':'#4caf50') + '"></div></div>' +
+        '<div style="font-size:10px;color:#888">HP ' + cat.hp + '/' + cat.maxHp + '</div></div>' +
+        '<button class="btn btn-sm' + (cat.skillReady && cat.hp>0?' btn-gold':'') + '" ' +
+        'style="font-size:10px;padding:4px 8px" ' +
+        'onclick="event.stopPropagation();Game.useSkill(' + i + ')" ' +
+        (cat.hp<=0?'disabled':'') + '>' +
+        this.classes[cat.cls].skill.name + '<br>' + skillStatus + '</button></div>';
+    }).join('');
+  },
+
+  renderEnemy() {
+    if (!this.enemy) return;
+    document.getElementById('enemy-name').textContent = this.enemy.name;
+    const hpPct = Math.max(0, Math.round(this.enemy.hp / this.enemy.maxHp * 100));
+    document.getElementById('enemy-hp-fill').style.width = hpPct + '%';
+    document.getElementById('enemy-hp-text').textContent = Math.max(0, this.enemy.hp) + '/' + this.enemy.maxHp;
+  },
+
+  renderTeamTab() {
+    if (this.selectedCat === null) this.selectedCat = 0;
+    if (this.selectedCat >= this.cats.length) return;
+    const cat = this.cats[this.selectedCat];
+    const cls = this.classes[cat.cls];
+    const eq = cat.equipment;
+    const xpNeed = cat.level * 50 + Math.floor(Math.pow(cat.level, 1.8) * 10);
+    document.getElementById('tab-team').innerHTML =
+      '<div style="text-align:center;margin-bottom:8px">' +
+      '<span style="font-size:40px;color:' + cls.color + '">' +
+      (cat.cls==='warrior'?'W':cat.cls==='mage'?'M':'N') + '</span>' +
+      '<div style="font-weight:bold;font-size:16px">' + cat.name + '</div>' +
+      '<div style="font-size:12px;color:#aaa">' + cls.name + ' - Nivel ' + cat.level + (cat.evolved ? ' EVOLUIDO' : '') + '</div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">' +
+      '<div>ATK: <b>' + cat.atk + '</b></div><div>DEF: <b>' + cat.def + '</b></div>' +
+      '<div>HP: <b>' + cat.hp + '/' + cat.maxHp + '</b></div><div>SPD: <b>' + cat.spd + '</b></div>' +
+      '<div>XP: <b>' + cat.xp + '/' + xpNeed + '</b></div><div>Skill: <b>' + cls.skill.name + '</b></div></div>' +
+      '<div style="margin-top:8px;font-size:12px;color:#aaa">' +
+      '<div>Arma: ' + (eq.weapon ? eq.weapon.name + ' (+' + eq.weapon.atk + ' ATK)' : 'Nenhuma') + '</div>' +
+      '<div>Armadura: ' + (eq.armor ? eq.armor.name + ' (+' + eq.armor.def + ' DEF, +' + eq.armor.hp + ' HP)' : 'Nenhuma') + '</div>' +
+      '<div>Acessorio: ' + (eq.accessory ? eq.accessory.name + ' (+' + eq.accessory.def + ' DEF, +' + eq.accessory.hp + ' HP)' : 'Nenhum') + '</div></div>';
+  },
+
+  renderShopTab() {
+    document.getElementById('tab-shop').innerHTML =
+      '<div style="font-size:14px;font-weight:bold;margin-bottom:8px">Loja do Gato</div>' +
+      '<div style="font-size:12px;color:#aaa;margin-bottom:8px">Compre equipamentos para seus gatos!</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px">' +
+      '<button class="btn btn-gold" onclick="Game.buyItem(\'weapon\')">Arma Aleatoria - 50 Gold</button>' +
+      '<button class="btn btn-gold" onclick="Game.buyItem(\'armor\')">Armadura Aleatoria - 40 Gold</button>' +
+      '<button class="btn btn-gold" onclick="Game.buyItem(\'accessory\')">Acessorio Aleatorio - 30 Gold</button>' +
+      '<button class="btn btn-danger" onclick="Game.reviveCats()" style="margin-top:8px">Reviver Gatos - 20 Gold</button></div>';
+  },
+
+  renderInventoryTab() {
+    const inventory = JSON.parse(localStorage.getItem('catlegion_inv') || '[]');
+    if (inventory.length === 0) {
+      document.getElementById('tab-inventory').innerHTML = '<div style="color:#666;text-align:center;padding:12px">Vazio - mate inimigos para ganhar drops!</div>';
+      return;
+    }
+    document.getElementById('tab-inventory').innerHTML =
+      '<div style="font-size:14px;font-weight:bold;margin-bottom:8px">Inventario (' + inventory.length + ' itens)</div>' +
+      inventory.map((item, i) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;font-size:12px">' +
+        '<div>' + item.name + ' <span style="color:#888">[' + item.type + ']</span></div>' +
+        '<div style="color:#aaa">ATK:' + (item.atk||0) + ' DEF:' + (item.def||0) + ' HP:' + (item.hp||0) + '</div>' +
+        '<button class="btn btn-sm" style="font-size:10px" onclick="Game.equipFromInventory(' + i + ')">Equipar</button></div>').join('');
+  },
+
+  buyItem(type) {
+    const costs = {weapon:50, armor:40, accessory:30};
+    if (this.gold < costs[type]) { this.showMessage('Ouro insuficiente!'); return; }
+    this.gold -= costs[type];
+    const item = this.generateDrop(type);
+    this.addToInventory(item);
+    this.renderAll();
+    this.saveGame();
+    this.showMessage('Comprado: ' + item.name + '!');
+  },
+
+  reviveCats() {
+    if (this.gold < 20) { this.showMessage('Ouro insuficiente!'); return; }
+    this.gold -= 20;
+    this.cats.forEach(c => { if (c.hp <= 0) c.hp = Math.floor(c.maxHp * 0.5); });
+    this.renderAll();
+    this.saveGame();
+    this.showMessage('Gatos revividos com 50% HP!');
+  },
+
+  addToInventory(item) {
+    const inv = JSON.parse(localStorage.getItem('catlegion_inv') || '[]');
+    inv.push(item);
+    localStorage.setItem('catlegion_inv', JSON.stringify(inv));
+  },
+
+  equipFromInventory(idx) {
+    if (this.selectedCat === null) { this.showMessage('Selecione um gato primeiro!'); return; }
+    const inv = JSON.parse(localStorage.getItem('catlegion_inv') || '[]');
+    if (idx >= inv.length) return;
+    const item = inv[idx];
+    inv.splice(idx, 1);
+    localStorage.setItem('catlegion_inv', JSON.stringify(inv));
+    this.equipItem(this.selectedCat, item);
+    this.showMessage('Equipado: ' + item.name + '!');
+  },
+
+  switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    const idx = tab==='team'?0:tab==='shop'?1:2;
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'team') this.renderTeamTab();
+    if (tab === 'shop') this.renderShopTab();
+    if (tab === 'inventory') this.renderInventoryTab();
+  },
+
+  renderAll() {
+    this.renderCats();
+    this.renderEnemy();
+    if (document.getElementById('tab-team').classList.contains('active')) this.renderTeamTab();
+    document.getElementById('gold').textContent = this.gold;
+    document.getElementById('wave').textContent = this.wave;
+    document.getElementById('kills').textContent = this.kills;
+  },
+
+  // ==================== SAVE/LOAD ====================
+  saveGame() {
+    const data = {
+      gold: this.gold, wave: this.wave, kills: this.kills,
+      cats: this.cats.map(c => ({
+        id:c.id, cls:c.cls, level:c.level, xp:c.xp, name:c.name,
+        hp:c.hp, maxHp:c.maxHp, atk:c.atk, def:c.def, spd:c.spd,
+        equipment:c.equipment, evolved:c.evolved
+      })),
+      time: Date.now()
+    };
+    localStorage.setItem('catlegion_save', JSON.stringify(data));
+  },
+
+  loadGame() {
+    const raw = localStorage.getItem('catlegion_save');
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      this.gold = data.gold || 0;
+      this.wave = data.wave || 1;
+      this.kills = data.kills || 0;
+
+      // Offline gold
+      const elapsed = Math.floor((Date.now() - (data.time || Date.now())) / 1000);
+      const offlineGold = Math.max(0, Math.floor(elapsed / 60) * Math.max(1, this.wave));
+      if (offlineGold > 1) {
+        this.gold += offlineGold;
+        setTimeout(() => this.showMessage('Ouro offline: +' + offlineGold + '!'), 1000);
+      }
+
+      if (data.cats) {
+        this.cats = data.cats.map(c => {
+          c.skillReady = true;
+          c.skillCd = undefined;
+          c.evolved = c.evolved || false;
+          return c;
+        });
+      }
+    } catch(e) { console.error('Load failed', e); }
+  },
+};
+
+// Auto-save every 30s
+setInterval(() => Game.saveGame(), 30000);
+
+// Save on page unload
+window.addEventListener('beforeunload', () => Game.saveGame());
+
+// Init
+Game.cats.forEach(c => { c.skillReady = true; });
+Game.init();
+</script>
+</body>
+</html>
