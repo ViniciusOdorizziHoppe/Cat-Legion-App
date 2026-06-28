@@ -64,7 +64,7 @@ body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;d
     </div>
     <div id="cats-container"></div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="btn" onclick="Game.startWave()" id="btn-wave">Iniciar Wave</button>
+      <button class="btn" onclick="Game.toggleAutoWave()" id="btn-wave" style="background:linear-gradient(135deg,#27ae60,#2ecc71)">Pausar</button>
       <button class="btn btn-sm" onclick="Game.toggleSpeed()" id="btn-speed" style="width:auto;font-size:11px">1x</button>
       <button class="btn btn-sm" onclick="Game.toggleAutoSkill()" id="btn-auto" style="width:auto;font-size:11px;background:rgba(255,255,255,0.1)">Auto</button>
     </div>
@@ -95,10 +95,13 @@ const Game = {
   },
 
   cats: [
-    {id:0,cls:'warrior',level:1,xp:0,name:'Tigrao',hp:150,maxHp:150,atk:18,def:8,spd:10,equipment:{weapon:null,armor:null,accessory:null},evolved:false},
-    {id:1,cls:'mage',level:1,xp:0,name:'Merlin',hp:90,maxHp:90,atk:28,def:4,spd:8,equipment:{weapon:null,armor:null,accessory:null},evolved:false},
-    {id:2,cls:'ninja',level:1,xp:0,name:'Shadow',hp:110,maxHp:110,atk:22,def:5,spd:15,equipment:{weapon:null,armor:null,accessory:null},evolved:false}
+    {id:0,cls:'warrior',level:1,xp:0,name:'Tigrao',hp:150,maxHp:150,atk:18,def:8,spd:10,equipment:{weapon:null,armor:null,accessory:null},evolved:false,unlocked:true},
+    {id:1,cls:'mage',level:1,xp:0,name:'Merlin',hp:90,maxHp:90,atk:28,def:4,spd:8,equipment:{weapon:null,armor:null,accessory:null},evolved:false,unlocked:false},
+    {id:2,cls:'ninja',level:1,xp:0,name:'Shadow',hp:110,maxHp:110,atk:22,def:5,spd:15,equipment:{weapon:null,armor:null,accessory:null},evolved:false,unlocked:false}
   ],
+  lastCheckpoint: 1,   // wave checkpoint for revive
+  autoWave: true,       // waves start automatically
+  heroesUnlocked: 1,    // starts with 1 hero
 
   enemy: null,
 
@@ -261,9 +264,11 @@ const Game = {
     // Cats (with animations) - LEFT SIDE
     const catStartX = 40;
     const catSpacing = 80;
-    this.cats.forEach((cat, i) => {
+    this.cats.filter(c => c.unlocked).forEach((cat, i) => {
       const alive = cat.hp > 0;
-      let ox = catStartX + i * catSpacing;
+      const visibleCats = this.cats.filter(c => c.unlocked).length;
+      const spacing = visibleCats === 1 ? 0 : (visibleCats === 2 ? 60 : 80);
+      let ox = catStartX + i * spacing;
       let oy = h - 70;
       
       // Init animation state
@@ -440,6 +445,20 @@ const Game = {
     this.saveGame();
   },
 
+  toggleAutoWave() {
+    this.autoWave = !this.autoWave;
+    const btn = document.getElementById('btn-wave');
+    if (this.autoWave) {
+      btn.textContent = 'Pausar';
+      btn.style.background = 'linear-gradient(135deg,#27ae60,#2ecc71)';
+      if (!this.autoAttack) this.startWave();
+    } else {
+      btn.textContent = 'Retomar';
+      btn.style.background = 'linear-gradient(135deg,#e74c3c,#c0392b)';
+      if (this.autoAttack) { clearInterval(this.autoAttack); this.autoAttack = null; }
+    }
+  },
+
   toggleSpeed() {
     this.gameSpeed = this.gameSpeed === 1 ? 2 : this.gameSpeed === 2 ? 3 : 1;
     document.getElementById('btn-speed').textContent = this.gameSpeed + 'x';
@@ -466,7 +485,7 @@ const Game = {
     if (this.autoAttack) clearInterval(this.autoAttack);
     if (!this.enemy || this.enemy.hp <= 0) this.spawnEnemy();
 
-    const aliveCats = this.cats.filter(c => c.hp > 0);
+    const aliveCats = this.cats.filter(c => c.unlocked && c.hp > 0);
     if (aliveCats.length === 0) { this.showMessage('Todos os gatos morreram! Reviva-os na loja.'); return; }
 
     this.autoAttack = setInterval(() => {
@@ -489,7 +508,7 @@ const Game = {
       return;
     }
 
-    const aliveCats = this.cats.filter(c => c.hp > 0);
+    const aliveCats = this.cats.filter(c => c.unlocked && c.hp > 0);
     if (aliveCats.length === 0) {
       clearInterval(this.autoAttack);
       this.autoAttack = null;
@@ -579,6 +598,36 @@ const Game = {
 
     this.enemy = null;
     this.wave++;
+    
+    // Checkpoint revive every 5 waves
+    if (this.wave % 5 === 0) {
+      this.lastCheckpoint = this.wave;
+      // Full heal + revive all
+      this.cats.forEach(c => {
+        if (c.unlocked) {
+          c.hp = c.maxHp;
+          c.skillReady = true;
+          c.skillCd = undefined;
+        }
+      });
+      this.showMessage('CHECKPOINT! Wave ' + this.wave + ' - Gatos restaurados!');
+      this.playSound(880, 0.2, 'sine', 0.1);
+    }
+    
+    // Hero unlock at waves 3 and 8
+    if (this.wave === 3 && !this.cats[1].unlocked) {
+      this.cats[1].unlocked = true;
+      this.cats[1].hp = this.cats[1].maxHp;
+      this.showMessage('Merlin (Mago) desbloqueado!');
+      this.playSound(1047, 0.3, 'sine', 0.12);
+    }
+    if (this.wave === 8 && !this.cats[2].unlocked) {
+      this.cats[2].unlocked = true;
+      this.cats[2].hp = this.cats[2].maxHp;
+      this.showMessage('Shadow (Ninja) desbloqueado!');
+      this.playSound(1319, 0.3, 'sine', 0.12);
+    }
+    
     this.renderAll();
     this.saveGame();
     // Wave clear celebration
@@ -780,15 +829,15 @@ const Game = {
   // ==================== UI RENDERING ====================
   renderCats() {
     const container = document.getElementById('cats-container');
-    container.innerHTML = this.cats.map((cat, i) => {
+    container.innerHTML = this.cats.filter(c => c.unlocked).map((cat, i) => {
       const color = this.classes[cat.cls].color;
       const hpPct = Math.round(cat.hp / cat.maxHp * 100);
       const skillStatus = cat.skillReady ? 'Pronta!' : (cat.skillCd !== undefined ? cat.skillCd + 's' : 'Pronta!');
-      return '<div class="cat-row' + (this.selectedCat === i ? ' selected' : '') + '" ' +
-        'onclick="Game.selectedCat=' + i + ';Game.renderAll()" ' +
+      return '<div class="cat-row' + (this.selectedCat === cat.id ? ' selected' : '') + '" ' +
+        'onclick="Game.selectedCat=' + cat.id + ';Game.renderAll()" ' +
         'style="border-left:3px solid ' + color + '">' +
-        '<div class="cat-icon" style="font-size:11px;font-weight:bold;color:' + color + '">' +
-        (cat.cls === 'warrior' ? 'WAR' : cat.cls === 'mage' ? 'MAG' : 'NIN') + '</div>' +
+        '<div class="cat-icon" style="font-size:22px">' +
+        (cat.cls === 'warrior' ? '🐯' : cat.cls === 'mage' ? '🔮' : '🥷') + '</div>' +
         '<div class="cat-info">' +
         '<div class="cat-name">' + cat.name + ' <span style="font-size:10px;color:#888">Nv.' + cat.level + (cat.evolved ? '*' : '') + '</span></div>' +
         '<div class="cat-stats">ATK:' + cat.atk + ' DEF:' + cat.def + ' SPD:' + cat.spd + '</div>' +
@@ -796,7 +845,7 @@ const Game = {
         '<div style="font-size:10px;color:#888">HP ' + cat.hp + '/' + cat.maxHp + '</div></div>' +
         '<button class="btn btn-sm' + (cat.skillReady && cat.hp>0?' btn-gold':'') + '" ' +
         'style="font-size:10px;padding:4px 8px" ' +
-        'onclick="event.stopPropagation();Game.useSkill(' + i + ')" ' +
+        'onclick="event.stopPropagation();Game.useSkill(' + cat.id + ')" ' +
         (cat.hp<=0?'disabled':'') + '>' +
         this.classes[cat.cls].skill.name + '<br>' + skillStatus + '</button></div>';
     }).join('');
@@ -855,7 +904,9 @@ const Game = {
     document.getElementById('tab-inventory').innerHTML =
       '<div style="font-size:14px;font-weight:bold;margin-bottom:8px">Inventario (' + inventory.length + ' itens)</div>' +
       inventory.map((item, i) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;font-size:12px">' +
-        '<div>' + item.name + ' <span style="color:#888">[' + item.type + ']</span></div>' +
+        '<div>' + 
+        (item.type === 'weapon' ? '🗡️' : item.type === 'armor' ? '🛡️' : '💍') + ' ' +
+        item.name + ' <span style="color:#888">[' + item.type + ']</span></div>' +
         '<div style="color:#aaa">ATK:' + (item.atk||0) + ' DEF:' + (item.def||0) + ' HP:' + (item.hp||0) + '</div>' +
         '<button class="btn btn-sm" style="font-size:10px" onclick="Game.equipFromInventory(' + i + ')">Equipar</button></div>').join('');
   },
@@ -922,6 +973,14 @@ const Game = {
     document.getElementById('wave').textContent = this.wave;
     document.getElementById('kills').textContent = this.kills;
     document.getElementById('prestige').textContent = this.prestige;
+    
+    // Progress bar
+    const nextMilestone = Math.ceil(this.wave / 5) * 5;
+    const prevMilestone = nextMilestone - 5;
+    const progress = ((this.wave - prevMilestone) / 5) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+    document.getElementById('progress-text').textContent = 'Wave ' + this.wave + '/' + nextMilestone;
+    document.getElementById('next-hero').textContent = this.cats[2].unlocked ? '-' : (this.cats[1].unlocked ? '8' : '3');
   },
 
   // ==================== SAVE/LOAD ====================
@@ -932,8 +991,9 @@ const Game = {
       cats: this.cats.map(c => ({
         id:c.id, cls:c.cls, level:c.level, xp:c.xp, name:c.name,
         hp:c.hp, maxHp:c.maxHp, atk:c.atk, def:c.def, spd:c.spd,
-        equipment:c.equipment, evolved:c.evolved
+        equipment:c.equipment, evolved:c.evolved, unlocked:c.unlocked
       })),
+      lastCheckpoint: this.lastCheckpoint,
       time: Date.now()
     };
     localStorage.setItem('catlegion_save', JSON.stringify(data));
@@ -989,9 +1049,12 @@ const Game = {
           c.skillReady = true;
           c.skillCd = undefined;
           c.evolved = c.evolved || false;
+          c.unlocked = c.unlocked !== undefined ? c.unlocked : true;
           return c;
         });
       }
+      this.lastCheckpoint = data.lastCheckpoint || 1;
+      this.heroesUnlocked = this.cats.filter(c => c.unlocked).length;
     } catch(e) { console.error('Load failed', e); }
   },
 };
@@ -1005,6 +1068,10 @@ window.addEventListener('beforeunload', () => Game.saveGame());
 // Init
 Game.cats.forEach(c => { c.skillReady = true; });
 Game.init();
+// Auto-start waves
+setTimeout(() => {
+  if (Game.autoWave && !Game.autoAttack) Game.startWave();
+}, 500);
 </script>
 </body>
 </html>
