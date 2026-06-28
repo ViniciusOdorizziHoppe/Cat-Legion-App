@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <title>Cat Legion</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -566,8 +567,8 @@ const Game = {
       return '<div class="cat-row' + (this.selectedCat === i ? ' selected' : '') + '" ' +
         'onclick="Game.selectedCat=' + i + ';Game.renderAll()" ' +
         'style="border-left:3px solid ' + color + '">' +
-        '<div class="cat-icon" style="color:' + color + ';font-size:28px">' +
-        (cat.cls === 'warrior' ? 'W' : cat.cls === 'mage' ? 'M' : 'N') + '</div>' +
+        '<div class="cat-icon" style="font-size:11px;font-weight:bold;color:' + color + '">' +
+        (cat.cls === 'warrior' ? 'WAR' : cat.cls === 'mage' ? 'MAG' : 'NIN') + '</div>' +
         '<div class="cat-info">' +
         '<div class="cat-name">' + cat.name + ' <span style="font-size:10px;color:#888">Nv.' + cat.level + (cat.evolved ? '*' : '') + '</span></div>' +
         '<div class="cat-stats">ATK:' + cat.atk + ' DEF:' + cat.def + ' SPD:' + cat.spd + '</div>' +
@@ -598,8 +599,8 @@ const Game = {
     const xpNeed = cat.level * 50 + Math.floor(Math.pow(cat.level, 1.8) * 10);
     document.getElementById('tab-team').innerHTML =
       '<div style="text-align:center;margin-bottom:8px">' +
-      '<span style="font-size:40px;color:' + cls.color + '">' +
-      (cat.cls==='warrior'?'W':cat.cls==='mage'?'M':'N') + '</span>' +
+      '<span style="font-size:14px;font-weight:bold;color:' + cls.color + '">' +
+      (cat.cls==='warrior'?'GUERREIRO':cat.cls==='mage'?'MAGO':'NINJA') + '</span>' +
       '<div style="font-weight:bold;font-size:16px">' + cat.name + '</div>' +
       '<div style="font-size:12px;color:#aaa">' + cls.name + ' - Nivel ' + cat.level + (cat.evolved ? ' EVOLUIDO' : '') + '</div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">' +

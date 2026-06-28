@@ -65,3 +65,21 @@ npx cap open android    # Abre no Android Studio para build
 ## Autor
 
 Feito por Vinicius Odorizzi Hoppe
+
+
+## Skills HERMES para este projeto
+
+O jogo foi desenvolvido usando o sistema de skills do HERMES. Skills relevantes:
+
+### Skills usadas
+- `game-class-system` — Sistema de classes (Warrior/Mage/Ninja)
+- `game-ability-system` — Habilidades com cooldown
+- `game-wave-system` — Progressao por ondas
+- `game-loot-system` — Drops e rarity tiers
+- `game-prestige-system` — Reset com bonus permanentes
+- `game-idle-progression` — Calculo de gold offline
+- `game-ui-design` — Interface escura tematica
+- `game-save-system` — localStorage save/load
+
+### Skills criadas para este genero
+Durante o desenvolvimento, 15 novas skills foram adicionadas ao catalogo HERMES especificamente para idle RPG/gacha games.
