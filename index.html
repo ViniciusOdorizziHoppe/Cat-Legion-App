@@ -114,6 +114,8 @@ const Game = {
     {name:'BOSS Dragao Anciao',hp:500,atk:35,def:20,gold:150,xp:120},
   ],
 
+  images: {},
+
   init() {
     this.loadGame();
     this.renderAll();
@@ -121,6 +123,15 @@ const Game = {
     this.ctx = this.canvas.getContext('2d');
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+    
+    // Load images
+    const imgNames = ['warrior','mage','ninja','background','enemies','equipment'];
+    imgNames.forEach(name => {
+      const img = new Image();
+      img.src = 'assets/' + name + '.png';
+      this.images[name] = img;
+    });
+    
     this.startCanvasLoop();
     this.spawnEnemy();
     this.renderAll();
@@ -147,13 +158,17 @@ const Game = {
     const h = this.canvas.height / (window.devicePixelRatio || 1);
     ctx.clearRect(0, 0, w, h);
 
-    // Sky gradient
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, h-40);
-    skyGrad.addColorStop(0, '#1a0a2e');
-    skyGrad.addColorStop(0.5, '#2d1b4e');
-    skyGrad.addColorStop(1, '#0d1b3e');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, w, h);
+    // Background image
+    if (this.images['background'] && this.images['background'].complete) {
+      ctx.drawImage(this.images['background'], 0, 0, w, h);
+    } else {
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+      skyGrad.addColorStop(0, '#1a0a2e');
+      skyGrad.addColorStop(0.5, '#2d1b4e');
+      skyGrad.addColorStop(1, '#0d1b3e');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     // Floating ambient particles
     if (!this._particles) this._particles = [];
@@ -183,52 +198,37 @@ const Game = {
     ctx.lineTo(w, h-50);
     ctx.stroke();
 
-    // Cats (draw as colored circles with initials)
+    // Cats (use generated images)
     this.cats.forEach((cat, i) => {
       const alive = cat.hp > 0;
       const x = 50 + i * 140;
-      const y = h - 90;
-      const cls = this.classes[cat.cls];
+      const y = h - 100;
       ctx.globalAlpha = alive ? 1 : 0.3;
 
-      // Cat body
-      ctx.fillStyle = cls.color;
-      ctx.beginPath();
-      ctx.arc(x, y, 20, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Cat ears
-      ctx.beginPath();
-      ctx.moveTo(x-15, y-10);
-      ctx.lineTo(x-8, y-30);
-      ctx.lineTo(x-2, y-10);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(x+2, y-10);
-      ctx.lineTo(x+8, y-30);
-      ctx.lineTo(x+15, y-10);
-      ctx.fill();
-
-      // Eyes
-      if (alive) {
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(x-7, y-3, 4, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x+7, y-3, 4, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(x-7, y-3, 2, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x+7, y-3, 2, 0, Math.PI*2); ctx.fill();
+      // Cat image
+      const imgKey = cat.cls; // 'warrior', 'mage', 'ninja'
+      const img = this.images[imgKey];
+      if (img && img.complete) {
+        const size = 60;
+        ctx.drawImage(img, x - size/2, y - size/2, size, size);
       } else {
+        // Fallback: colored circle
+        const cls = this.classes[cat.cls];
+        ctx.fillStyle = cls.color;
+        ctx.beginPath();
+        ctx.arc(x, y, 22, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = '12px sans-serif';
+        ctx.font = '14px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('X X', x, y);
+        ctx.fillText(cls.icon || '?', x, y + 5);
       }
 
       // Name
       ctx.fillStyle = '#fff';
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(cat.name, x, y + 35);
+      ctx.fillText(cat.name, x, y + 38);
 
       // HP bar
       if (alive) {
@@ -258,22 +258,34 @@ const Game = {
 
     // Enemy
     if (this.enemy && this.enemy.hp > 0) {
-      const ex = w - 70;
-      const ey = h - 100;
-
-      // Enemy body
-      ctx.fillStyle = '#ff6b6b';
-      ctx.beginPath();
-      ctx.arc(ex, ey, 25, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Enemy eyes
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(ex-8, ey-5, 5, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(ex+8, ey-5, 5, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(ex-8, ey-5, 3, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(ex+8, ey-5, 3, 0, Math.PI*2); ctx.fill();
+      const ex = w - 75;
+      const ey = h - 105;
+      const eImg = this.images['enemies'];
+      
+      if (eImg && eImg.complete) {
+        // Draw enemy from sprite sheet based on tier
+        const tier = Math.min(Math.floor((this.wave-1)/3), 8);
+        const cols = 3;
+        const rows = 3;
+        const sx = (tier % cols) * (eImg.width / cols);
+        const sy = Math.floor(tier / cols) * (eImg.height / rows);
+        const sw = eImg.width / cols;
+        const sh = eImg.height / rows;
+        const size = 65;
+        ctx.drawImage(eImg, sx, sy, sw, sh, ex - size/2, ey - size/2, size, size);
+      } else {
+        // Fallback
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.arc(ex, ey, 25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ex-8, ey-5, 5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex+8, ey-5, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(ex-8, ey-5, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex+8, ey-5, 3, 0, Math.PI*2); ctx.fill();
+      }
 
       // Enemy name
       ctx.fillStyle = '#ff6b6b';
@@ -283,8 +295,8 @@ const Game = {
 
       // Hit particles when enemy damaged
       if (this.enemyFlash > 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.beginPath(); ctx.arc(ex, ey, 28, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(ex, ey, 35, 0, Math.PI*2); ctx.fill();
         this.enemyFlash--;
       }
 
