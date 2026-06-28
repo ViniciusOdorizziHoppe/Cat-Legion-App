@@ -4,44 +4,223 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
 <title>Cat Legion</title>
 <style>
+:root {
+  --bg-deep: #0a0a1a;
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-card-hover: rgba(255,255,255,0.07);
+  --border-subtle: rgba(255,255,255,0.08);
+  --border-glow: rgba(168,85,247,0.4);
+  --text-primary: #f0e6ff;
+  --text-secondary: #a89bb5;
+  --text-dim: #6b5e7a;
+  --accent-purple: #a855f7;
+  --accent-gold: #f59e0b;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-cyan: #06b6d4;
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-ui: 'Inter', system-ui, sans-serif;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow-x:hidden}
-#app{width:100%;max-width:420px;min-height:100vh;background:linear-gradient(180deg,#1a0a2e 0%,#0d1b3e 50%,#0a0a1a 100%);position:relative;overflow:hidden}
-#game-canvas{width:100%;height:280px;background:linear-gradient(180deg,#2d1b4e 0%,#1a0a2e 100%);display:block}
-#ui{padding:12px 16px}
-.panel{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px;margin-bottom:10px;backdrop-filter:blur(12px)}
-.cat-row{display:flex;gap:8px;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:all 0.2s}
-.cat-row:hover{background:rgba(255,255,255,0.08)}
-.cat-row.selected{border:2px solid #ffd700;background:rgba(255,215,0,0.1)}
-.cat-icon{font-size:36px;width:50px;text-align:center}
-.cat-info{flex:1}
-.cat-name{font-weight:bold;font-size:14px}
-.cat-stats{font-size:11px;color:#aaa}
-.cat-hp-bar{height:4px;background:#333;border-radius:2px;margin-top:4px}
-.cat-hp-fill{height:100%;background:#4caf50;border-radius:2px;transition:width 0.3s}
-.enemy-section{text-align:center;padding:16px 0}
-.enemy-name{font-size:18px;font-weight:bold;color:#ff6b6b;margin-bottom:4px}
-.enemy-hp{font-size:12px;color:#aaa}
-.gold-display{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:bold;color:#ffd700}
-.btn{background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;transition:all 0.2s;width:100%}
-.btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(168,85,247,0.4)}
-.btn:active{transform:scale(0.97)}
-.btn-sm{padding:6px 12px;font-size:12px;width:auto}
-.btn-danger{background:linear-gradient(135deg,#e74c3c,#c0392b)}
-.btn-gold{background:linear-gradient(135deg,#f39c12,#e67e22)}
-.tabs{display:flex;gap:4px;margin-bottom:10px}
-.tab{flex:1;padding:8px;text-align:center;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:bold;transition:0.2s}
-.tab.active{background:rgba(168,85,247,0.2);border-color:#a855f7}
+body{
+  background:var(--bg-deep);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  display:flex;justify-content:center;align-items:center;
+  min-height:100vh;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;
+}
+#app{
+  width:100%;max-width:420px;min-height:100vh;
+  background:linear-gradient(180deg,#12062e 0%,#0d1b3e 50%,var(--bg-deep) 100%);
+  position:relative;overflow:hidden;
+}
+#game-canvas{width:100%;height:280px;display:block;background:linear-gradient(180deg,#1a0a2e 0%,#0d1b3e 100%)}
+#ui{padding:14px 16px 20px}
+.panel{
+  background:var(--bg-card);
+  border:1px solid var(--border-subtle);
+  border-radius:14px;padding:14px;margin-bottom:10px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+
+/* CAT CARDS */
+.cat-row{
+  display:flex;gap:12px;align-items:center;
+  padding:14px 16px;
+  background:var(--bg-card);
+  border:1px solid var(--border-subtle);
+  border-radius:12px;margin-bottom:8px;
+  cursor:pointer;transition:all 0.2s ease;
+  position:relative;overflow:hidden;
+}
+.cat-row:hover{background:var(--bg-card-hover);border-color:var(--border-glow)}
+.cat-row.selected{
+  border-color:var(--accent-gold);
+  box-shadow:0 0 20px rgba(245,158,11,0.15),inset 0 0 20px rgba(245,158,11,0.03);
+  background:rgba(245,158,11,0.06);
+}
+.cat-row:active{transform:scale(0.98)}
+.cat-icon{
+  font-size:32px;width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:10px;
+  background:rgba(255,255,255,0.03);
+  flex-shrink:0;
+}
+.cat-info{flex:1;min-width:0}
+.cat-name{font-weight:700;font-size:14px;letter-spacing:-0.01em}
+.cat-stats{font-size:11px;color:var(--text-secondary);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.cat-stats span{white-space:nowrap}
+.cat-hp-bar{height:5px;background:rgba(255,255,255,0.08);border-radius:3px;margin-top:6px;overflow:hidden}
+.cat-hp-fill{height:100%;border-radius:3px;transition:width 0.4s ease;background:linear-gradient(90deg,var(--accent-green),#4ade80)}
+
+/* ENEMY SECTION */
+.enemy-section{text-align:center;padding:12px 0 8px}
+.enemy-name{
+  font-family:var(--font-pixel);font-size:10px;
+  font-weight:400;color:var(--accent-red);
+  margin-bottom:6px;letter-spacing:0.05em;text-shadow:0 0 10px rgba(239,68,68,0.3);
+}
+.enemy-hp{font-size:11px;color:var(--text-dim);margin-top:4px;font-family:var(--font-pixel);font-size:9px}
+
+/* HP BAR */
+.hp-bar-outer{height:12px;background:rgba(0,0,0,0.4);border-radius:6px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.3)}
+.hp-bar-inner{height:100%;border-radius:6px;transition:width 0.4s ease;
+  background:linear-gradient(180deg,#ff6b6b 0%,#e74c3c 50%,#c0392b 100%);
+  box-shadow:0 0 8px rgba(239,68,68,0.3),inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* GOLD */
+.gold-display{
+  display:flex;align-items:center;gap:6px;
+  font-size:22px;font-weight:900;color:var(--accent-gold);
+  text-shadow:0 0 20px rgba(245,158,11,0.3);
+}
+
+/* BUTTONS */
+.btn{
+  background:linear-gradient(180deg,#7c3aed 0%,#6d28d9 100%);
+  color:#fff;border:none;padding:12px 20px;border-radius:10px;
+  font-weight:700;cursor:pointer;font-size:14px;
+  transition:all 0.15s ease;
+  width:100%;position:relative;overflow:hidden;
+  font-family:var(--font-ui);letter-spacing:-0.01em;
+  box-shadow:0 4px 15px rgba(124,58,237,0.3),inset 0 1px 0 rgba(255,255,255,0.1);
+  -webkit-tap-highlight-color:transparent;
+}
+.btn:active{transform:scale(0.96);box-shadow:0 2px 8px rgba(124,58,237,0.2)}
+.btn-sm{padding:8px 14px;font-size:12px;width:auto;border-radius:8px;white-space:nowrap}
+.btn-gold{
+  background:linear-gradient(180deg,#f59e0b 0%,#d97706 100%);
+  box-shadow:0 4px 15px rgba(245,158,11,0.3),inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.btn-green{
+  background:linear-gradient(180deg,#22c55e 0%,#16a34a 100%);
+  box-shadow:0 4px 15px rgba(34,197,94,0.3),inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.btn-danger{
+  background:linear-gradient(180deg,#ef4444 0%,#dc2626 100%);
+  box-shadow:0 4px 15px rgba(239,68,68,0.3),inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* TABS */
+.tabs{display:flex;gap:6px;margin-bottom:0}
+.tab{
+  flex:1;padding:10px 8px;text-align:center;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border-subtle);
+  border-radius:10px 10px 0 0;cursor:pointer;
+  font-size:12px;font-weight:600;transition:0.2s;
+  color:var(--text-dim);
+}
+.tab.active{
+  background:rgba(168,85,247,0.12);
+  border-color:var(--accent-purple);
+  color:var(--accent-purple);
+  box-shadow:0 -2px 10px rgba(168,85,247,0.1);
+}
 .tab-content{display:none}
 .tab-content.active{display:block}
-.damage-pop{position:absolute;font-weight:bold;font-size:16px;pointer-events:none;animation:popUp 1s ease-out forwards}
-@keyframes popUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-40px)}}
+
+/* DAMAGE NUMBERS */
+.damage-pop{
+  position:absolute;font-weight:900;pointer-events:none;
+  animation:popUp 1.2s ease-out forwards;
+  font-family:var(--font-pixel);font-size:11px;
+  text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;
+  z-index:100;
+}
+@keyframes popUp{
+  0%{opacity:1;transform:translateY(0) scale(1)}
+  50%{opacity:1;transform:translateY(-20px) scale(1.1)}
+  100%{opacity:0;transform:translateY(-50px) scale(0.8)}
+}
+
+.gold-gain{
+  position:absolute;color:var(--accent-gold);font-weight:900;
+  pointer-events:none;animation:floatUp 1.5s ease-out forwards;
+  font-family:var(--font-pixel);font-size:12px;
+  text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;
+  z-index:100;
+}
+@keyframes floatUp{
+  0%{opacity:1;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-70px)}
+}
+
+/* INVENTORY ITEMS */
+.inv-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 14px;
+  background:rgba(255,255,255,0.02);
+  border:1px solid var(--border-subtle);
+  border-radius:10px;margin-bottom:6px;font-size:12px;
+  transition:all 0.15s;
+}
+.inv-item:hover{background:rgba(255,255,255,0.05);border-color:var(--border-glow)}
+.inv-item .btn-sm{font-size:10px;padding:6px 10px}
+
+/* PROGRESS BAR */
+.progress-bar-outer{
+  height:6px;background:rgba(0,0,0,0.3);border-radius:3px;
+  overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);
+}
+.progress-bar-inner{
+  height:100%;border-radius:3px;transition:width 0.5s ease;
+  background:linear-gradient(90deg,var(--accent-purple),var(--accent-gold));
+  box-shadow:0 0 10px rgba(168,85,247,0.4);
+}
+
+/* SPEED/AUTO BUTTONS */
+.util-btn{
+  padding:8px 12px;font-size:11px;font-weight:600;
+  border-radius:8px;border:1px solid var(--border-subtle);
+  background:rgba(255,255,255,0.04);
+  color:var(--text-secondary);cursor:pointer;
+  transition:all 0.15s;white-space:nowrap;
+  font-family:var(--font-ui);
+}
+.util-btn:active{transform:scale(0.95)}
+.util-btn.active{
+  background:rgba(168,85,247,0.15);
+  border-color:var(--accent-purple);
+  color:var(--accent-purple);
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+
+/* SHAKE */
 .shake{animation:shake 0.3s ease}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-.gold-gain{position:absolute;color:#ffd700;font-weight:bold;font-size:14px;pointer-events:none;animation:floatUp 1.5s ease-out forwards}
-@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-60px)}}
 </style>
 </head>
 <body>
@@ -52,25 +231,25 @@ body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;d
       <div>
         <div style="font-size:12px;color:#aaa">CAT LEGION</div>
         <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> · Kills <span id="kills">0</span> · Prestige <span id="prestige">0</span></div>
-        <div style="margin-top:6px;height:6px;background:#333;border-radius:3px;overflow:hidden">
-          <div id="progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#a855f7,#ffd700);border-radius:3px;transition:width 0.5s"></div>
+        <div class="progress-bar-outer" style="margin-top:6px">
+          <div id="progress-bar" class="progress-bar-inner" style="height:100%;width:0%;background:linear-gradient(90deg,#a855f7,#ffd700);border-radius:3px;transition:width 0.5s"></div>
         </div>
         <div style="font-size:9px;color:#666;margin-top:2px">Progresso: <span id="progress-text">Wave 1/5</span> · Proximo heroi: Wave <span id="next-hero">3</span></div>
       </div>
-      <div class="gold-display"><span id="gold">0</span> Gold</div>
+      <div class="gold-display">🪙 <span id="gold">0</span></div>
     </div>
     <div id="enemy-section" class="enemy-section">
       <div class="enemy-name" id="enemy-name">Rato Selvagem</div>
-      <div style="width:200px;height:10px;background:#333;border-radius:5px;margin:8px auto">
-        <div id="enemy-hp-fill" style="width:100%;height:100%;background:#ff6b6b;border-radius:5px;transition:width 0.3s"></div>
+      <div class="hp-bar-outer" style="width:220px;margin:8px auto">
+        <div id="enemy-hp-fill" class="hp-bar-inner" style="width:100%;height:100%;background:#ff6b6b;border-radius:5px;transition:width 0.3s"></div>
       </div>
       <div class="enemy-hp" id="enemy-hp-text">100/100</div>
     </div>
     <div id="cats-container"></div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="btn" onclick="Game.toggleAutoWave()" id="btn-wave" style="background:linear-gradient(135deg,#27ae60,#2ecc71)">Pausar</button>
-      <button class="btn btn-sm" onclick="Game.toggleSpeed()" id="btn-speed" style="width:auto;font-size:11px">1x</button>
-      <button class="btn btn-sm" onclick="Game.toggleAutoSkill()" id="btn-auto" style="width:auto;font-size:11px;background:rgba(255,255,255,0.1)">Auto</button>
+      <button class="btn btn-green" onclick="Game.toggleAutoWave()" id="btn-wave">⚔️ Pausar</button>
+      <button class="util-btn" onclick="Game.toggleSpeed()" id="btn-speed">1x</button>
+      <button class="util-btn" onclick="Game.toggleAutoSkill()" id="btn-auto">Auto</button>
     </div>
     <div class="tabs" style="margin-top:12px">
       <div class="tab active" onclick="Game.switchTab('team')">Time</div>
@@ -453,12 +632,12 @@ const Game = {
     this.autoWave = !this.autoWave;
     const btn = document.getElementById('btn-wave');
     if (this.autoWave) {
-      btn.textContent = 'Pausar';
-      btn.style.background = 'linear-gradient(135deg,#27ae60,#2ecc71)';
+      btn.innerHTML = '⚔️ Pausar';
+      btn.className = 'btn btn-green';
       if (!this.autoAttack) this.startWave();
     } else {
-      btn.textContent = 'Retomar';
-      btn.style.background = 'linear-gradient(135deg,#e74c3c,#c0392b)';
+      btn.innerHTML = '▶️ Retomar';
+      btn.className = 'btn btn-danger';
       if (this.autoAttack) { clearInterval(this.autoAttack); this.autoAttack = null; }
     }
   },
@@ -481,7 +660,7 @@ const Game = {
     this.autoSkill = !this.autoSkill;
     const btn = document.getElementById('btn-auto');
     btn.textContent = this.autoSkill ? 'Auto ON' : 'Auto';
-    btn.style.background = this.autoSkill ? 'linear-gradient(135deg,#27ae60,#2ecc71)' : 'rgba(255,255,255,0.1)';
+    btn.className = this.autoSkill ? 'util-btn active' : 'util-btn';
   },
 
   startWave() {
@@ -907,7 +1086,7 @@ const Game = {
     }
     document.getElementById('tab-inventory').innerHTML =
       '<div style="font-size:14px;font-weight:bold;margin-bottom:8px">Inventario (' + inventory.length + ' itens)</div>' +
-      inventory.map((item, i) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;font-size:12px">' +
+      inventory.map((item, i) => '<div class="inv-item">' +
         '<div>' + 
         (item.type === 'weapon' ? '🗡️' : item.type === 'armor' ? '🛡️' : '💍') + ' ' +
         item.name + ' <span style="color:#888">[' + item.type + ']</span></div>' +
