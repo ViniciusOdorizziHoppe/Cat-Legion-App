@@ -185,6 +185,13 @@ const Game = {
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, w, h);
     }
+    
+    // Dark vignette to mask any BG remnants on sprites
+    const vGrad = ctx.createRadialGradient(w/2, h-50, w*0.3, w/2, h-50, w*0.8);
+    vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = vGrad;
+    ctx.fillRect(0, 0, w, h);
 
     // Floating ambient particles
     if (!this._particles) this._particles = [];
@@ -214,11 +221,13 @@ const Game = {
     ctx.lineTo(w, h-50);
     ctx.stroke();
 
-    // Cats (with animations)
+    // Cats (with animations) - LEFT SIDE
+    const catStartX = 40;
+    const catSpacing = 80;
     this.cats.forEach((cat, i) => {
       const alive = cat.hp > 0;
-      let ox = 50 + i * 140;
-      let oy = h - 100;
+      let ox = catStartX + i * catSpacing;
+      let oy = h - 70;
       
       // Init animation state
       if (!this.animStates[cat.id]) this.animStates[cat.id] = { attack: 0, hit: 0, idle: Math.random() * Math.PI * 2 };
@@ -268,12 +277,12 @@ const Game = {
         const cls = this.classes[cat.cls];
         ctx.fillStyle = cls.color;
         ctx.beginPath();
-        ctx.arc(ox, oy, 22, 0, Math.PI * 2);
+        ctx.arc(ox, oy, 18, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = '14px sans-serif';
+        ctx.font = '11px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(cls.icon || '?', ox, oy + 5);
+        ctx.fillText(cls.icon || '?', ox, oy + 4);
       }
 
       // Name
@@ -282,13 +291,13 @@ const Game = {
       ctx.fillStyle = '#fff';
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(cat.name, ox, oy + 38);
+      ctx.fillText(cat.name, ox, oy + 32);
 
       // HP bar
       if (alive) {
         const barW = 70;
         ctx.fillStyle = '#333';
-        ctx.fillRect(ox - barW/2, oy + 40, barW, 5);
+        ctx.fillRect(ox - barW/2, oy + 34, barW, 4);
         const hpColor = cat.hp < cat.maxHp*0.3 ? '#ff6b6b' : '#4caf50';
         ctx.fillStyle = hpColor;
         ctx.fillRect(ox - barW/2, oy + 40, barW * (cat.hp/cat.maxHp), 5);
@@ -299,7 +308,7 @@ const Game = {
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = '#aaa';
       ctx.font = '10px sans-serif';
-      ctx.fillText('Lv.' + cat.level + (cat.evolved ? '*' : ''), ox, oy + 52);
+      ctx.fillText('Lv.' + cat.level + (cat.evolved ? '*' : ''), ox, oy + 45);
 
       // Skill ready sparkle
       if (alive && cat.skillReady) {
@@ -308,18 +317,18 @@ const Game = {
         ctx.fillStyle = '#ffd700';
         const sparkleSize = 12 + Math.sin(this.animTime * 0.1) * 2;
         ctx.font = sparkleSize + 'px sans-serif';
-        ctx.fillText('*', ox + 22, oy - 22);
-        ctx.fillText('*', ox - 22, oy - 20);
+        ctx.fillText('*', ox + 18, oy - 22);
+        ctx.fillText('*', ox - 18, oy - 20);
       }
 
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     });
 
-    // Enemy
+    // Enemy - RIGHT SIDE, large
     if (this.enemy && this.enemy.hp > 0) {
-      const ex = w - 75;
-      const ey = h - 105;
+      const ex = w - 60;
+      const ey = h - 90;
       const eImg = this.images['enemies'];
       
       if (eImg && eImg.complete) {
@@ -331,13 +340,13 @@ const Game = {
         const sy = Math.floor(tier / cols) * (eImg.height / rows);
         const sw = eImg.width / cols;
         const sh = eImg.height / rows;
-        const size = 65;
+        const size = 80;
         ctx.drawImage(eImg, sx, sy, sw, sh, ex - size/2, ey - size/2, size, size);
       } else {
         // Fallback
         ctx.fillStyle = '#ff6b6b';
         ctx.beginPath();
-        ctx.arc(ex, ey, 25, 0, Math.PI * 2);
+        ctx.arc(ex, ey, 30, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(ex-8, ey-5, 5, 0, Math.PI*2); ctx.fill();
@@ -351,19 +360,19 @@ const Game = {
       ctx.fillStyle = '#ff6b6b';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.enemy.name, ex, ey + 42);
+      ctx.fillText(this.enemy.name, ex, ey + 48);
 
       // Hit particles when enemy damaged
       if (this.enemyFlash > 0) {
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.beginPath(); ctx.arc(ex, ey, 35, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex, ey, 45, 0, Math.PI*2); ctx.fill();
         this.enemyFlash--;
       }
 
       // HP bar
       const barW = 90;
       ctx.fillStyle = '#333';
-      ctx.fillRect(ex - barW/2, ey + 48, barW, 7);
+      ctx.fillRect(ex - barW/2, ey + 52, barW, 7);
       const hpRatio = this.enemy.hp / this.enemy.maxHp;
       ctx.fillStyle = hpRatio < 0.3 ? '#ff4444' : '#ff6b6b';
       ctx.fillRect(ex - barW/2, ey + 48, barW * hpRatio, 7);
