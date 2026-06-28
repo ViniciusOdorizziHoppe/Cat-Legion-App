@@ -50,7 +50,7 @@ body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;d
     <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-size:12px;color:#aaa">CAT LEGION</div>
-        <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> - Kills <span id="kills">0</span></div>
+        <div style="font-size:10px;color:#666">Wave <span id="wave">1</span> - Kills <span id="kills">0</span> · Prestige <span id="prestige">0</span></div>
       </div>
       <div class="gold-display"><span id="gold">0</span> Gold</div>
     </div>
@@ -99,13 +99,19 @@ const Game = {
 
   enemy: null,
 
+  prestige: 0,
+  prestigeBonus: 0,
+
   enemies: [
     {name:'Rato Selvagem',hp:40,atk:5,def:1,gold:5,xp:3},
     {name:'Morcego Sombrio',hp:55,atk:7,def:2,gold:8,xp:5},
     {name:'Lobo Sombrio',hp:90,atk:10,def:4,gold:15,xp:10},
     {name:'Espectro',hp:130,atk:14,def:6,gold:22,xp:18},
+    {name:'Cobra Venenosa',hp:160,atk:18,def:8,gold:30,xp:25},
     {name:'Dragaozinho',hp:200,atk:20,def:10,gold:40,xp:35},
+    {name:'Demonio Menor',hp:270,atk:24,def:12,gold:55,xp:50},
     {name:'BOSS Gato Zumbi',hp:350,atk:28,def:15,gold:80,xp:70},
+    {name:'BOSS Dragao Anciao',hp:500,atk:35,def:20,gold:150,xp:120},
   ],
 
   init() {
@@ -573,7 +579,9 @@ const Game = {
       '<button class="btn btn-gold" onclick="Game.buyItem(\'weapon\')">Arma Aleatoria - 50 Gold</button>' +
       '<button class="btn btn-gold" onclick="Game.buyItem(\'armor\')">Armadura Aleatoria - 40 Gold</button>' +
       '<button class="btn btn-gold" onclick="Game.buyItem(\'accessory\')">Acessorio Aleatorio - 30 Gold</button>' +
-      '<button class="btn btn-danger" onclick="Game.reviveCats()" style="margin-top:8px">Reviver Gatos - 20 Gold</button></div>';
+      '<button class="btn btn-danger" onclick="Game.reviveCats()" style="margin-top:8px">Reviver Gatos - 20 Gold</button>
+      <button class="btn" style="margin-top:8px;background:linear-gradient(135deg,#e74c3c,#8e44ad)" 
+        onclick="Game.prestigeReset()">Prestige Reset (Wave 15+) - +5 bonus stats permanentes!</button></div>';
   },
 
   renderInventoryTab() {
@@ -645,12 +653,14 @@ const Game = {
     document.getElementById('gold').textContent = this.gold;
     document.getElementById('wave').textContent = this.wave;
     document.getElementById('kills').textContent = this.kills;
+    document.getElementById('prestige').textContent = this.prestige;
   },
 
   // ==================== SAVE/LOAD ====================
   saveGame() {
     const data = {
       gold: this.gold, wave: this.wave, kills: this.kills,
+      prestige: this.prestige, prestigeBonus: this.prestigeBonus,
       cats: this.cats.map(c => ({
         id:c.id, cls:c.cls, level:c.level, xp:c.xp, name:c.name,
         hp:c.hp, maxHp:c.maxHp, atk:c.atk, def:c.def, spd:c.spd,
@@ -661,6 +671,32 @@ const Game = {
     localStorage.setItem('catlegion_save', JSON.stringify(data));
   },
 
+  prestigeReset() {
+    if (this.wave < 15) { this.showMessage('Precisa atingir Wave 15 para resetar!'); return; }
+    this.prestige++;
+    this.prestigeBonus += 5;
+    this.gold = Math.floor(this.gold * 0.1);
+    this.wave = 1;
+    this.kills = 0;
+    // Reset cats to lv1 with prestige bonus
+    this.cats.forEach(c => {
+      const cls = this.classes[c.cls];
+      c.level = 1; c.xp = 0; c.evolved = false;
+      c.maxHp = cls.hp + this.prestigeBonus * 20;
+      c.hp = c.maxHp;
+      c.atk = cls.atk + this.prestigeBonus * 3;
+      c.def = cls.def + this.prestigeBonus * 2;
+      c.spd = cls.spd + this.prestigeBonus;
+      c.equipment = {weapon:null, armor:null, accessory:null};
+      c.skillReady = true;
+    });
+    localStorage.setItem('catlegion_inv', '[]');
+    this.spawnEnemy();
+    this.renderAll();
+    this.saveGame();
+    this.showMessage('PRESTIGE ' + this.prestige + '! Bonus +' + this.prestigeBonus + ' em todos os stats!');
+  },
+
   loadGame() {
     const raw = localStorage.getItem('catlegion_save');
     if (!raw) return;
@@ -669,6 +705,8 @@ const Game = {
       this.gold = data.gold || 0;
       this.wave = data.wave || 1;
       this.kills = data.kills || 0;
+      this.prestige = data.prestige || 0;
+      this.prestigeBonus = data.prestigeBonus || 0;
 
       // Offline gold
       const elapsed = Math.floor((Date.now() - (data.time || Date.now())) / 1000);
