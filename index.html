@@ -65,6 +65,8 @@ body{background:#0a0a1a;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;d
     <div id="cats-container"></div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn" onclick="Game.startWave()" id="btn-wave">Iniciar Wave</button>
+      <button class="btn btn-sm" onclick="Game.toggleSpeed()" id="btn-speed" style="width:auto;font-size:11px">1x</button>
+      <button class="btn btn-sm" onclick="Game.toggleAutoSkill()" id="btn-auto" style="width:auto;font-size:11px;background:rgba(255,255,255,0.1)">Auto</button>
     </div>
     <div class="tabs" style="margin-top:12px">
       <div class="tab active" onclick="Game.switchTab('team')">Time</div>
@@ -102,6 +104,16 @@ const Game = {
 
   prestige: 0,
   prestigeBonus: 0,
+  gameSpeed: 1,
+  comboTimer: 0,
+  comboCount: 0,
+  autoSkill: false,
+  critChance: 10,      // 10% base crit
+  critDmg: 2.0,        // 2x crit damage
+  audioCtx: null,
+  waveCleared: false,
+  goldAnimTarget: 0,
+  goldAnimCurrent: 0,
 
   enemies: [
     {name:'Rato Selvagem',hp:40,atk:5,def:1,gold:5,xp:3},
@@ -133,9 +145,34 @@ const Game = {
       this.images[name] = img;
     });
     
+    // Audio context (lazy init on first interaction)
+    this.audioCtx = null;
+    
     this.startCanvasLoop();
     this.spawnEnemy();
     this.renderAll();
+  },
+
+  initAudio() {
+    if (!this.audioCtx) {
+      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  },
+
+  playSound(freq, duration, type, vol) {
+    if (!this.audioCtx) return;
+    type = type || 'square';
+    vol = vol || 0.08;
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, this.audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + duration);
   },
 
   canvasW: 0, canvasH: 0,
@@ -403,7 +440,29 @@ const Game = {
     this.saveGame();
   },
 
+  toggleSpeed() {
+    this.gameSpeed = this.gameSpeed === 1 ? 2 : this.gameSpeed === 2 ? 3 : 1;
+    document.getElementById('btn-speed').textContent = this.gameSpeed + 'x';
+    // Restart wave with new speed
+    if (this.autoAttack) {
+      clearInterval(this.autoAttack);
+      this.autoAttack = setInterval(() => {
+        this.combatTick();
+        this.tickSkills();
+        this.renderAll();
+      }, 1500 / this.gameSpeed);
+    }
+  },
+
+  toggleAutoSkill() {
+    this.autoSkill = !this.autoSkill;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = this.autoSkill ? 'Auto ON' : 'Auto';
+    btn.style.background = this.autoSkill ? 'linear-gradient(135deg,#27ae60,#2ecc71)' : 'rgba(255,255,255,0.1)';
+  },
+
   startWave() {
+    this.initAudio();
     if (this.autoAttack) clearInterval(this.autoAttack);
     if (!this.enemy || this.enemy.hp <= 0) this.spawnEnemy();
 
@@ -414,7 +473,7 @@ const Game = {
       this.combatTick();
       this.tickSkills();
       this.renderAll();
-    }, 1500);
+    }, 1500 / this.gameSpeed);
 
     document.getElementById('btn-wave').textContent = 'Em combate...';
     document.getElementById('btn-wave').disabled = true;
@@ -437,14 +496,39 @@ const Game = {
       return;
     }
 
+    // Auto-skill for dead cats or on cooldown
+    if (this.autoSkill) {
+      aliveCats.forEach(cat => {
+        if (cat.skillReady && cat.hp > 0) this.useSkill(cat.id);
+      });
+    }
+
     // Cats attack
     aliveCats.forEach(cat => {
-      // Trigger attack animation
       if (this.animStates[cat.id]) this.animStates[cat.id].attack = 1.0;
-      const dmg = Math.max(1, cat.atk - this.enemy.def + Math.floor(Math.random()*5));
+      let dmg = Math.max(1, cat.atk - this.enemy.def + Math.floor(Math.random()*5));
+      let isCrit = false;
+      
+      // Critical hit check
+      if (Math.random() * 100 < this.critChance) {
+        dmg = Math.floor(dmg * this.critDmg);
+        isCrit = true;
+        this.screenShake = 3;
+        this.playSound(800, 0.1, 'square', 0.06);
+      } else {
+        this.playSound(200, 0.05, 'triangle', 0.03);
+      }
+      
       this.enemy.hp -= dmg;
-      this.enemyFlash = 3;
+      this.enemyFlash = isCrit ? 6 : 3;
       this.showDamage(dmg, false);
+      
+      if (isCrit) {
+        this.floatingTexts.push({
+          x: 180, y: 80, text: 'CRIT! ' + dmg,
+          life: 30, maxLife: 30, size: 20
+        });
+      }
     });
 
     if (this.enemy.hp <= 0) {
@@ -464,9 +548,16 @@ const Game = {
   onEnemyKilled() {
     clearInterval(this.autoAttack);
     this.autoAttack = null;
+    
+    this.playSound(523, 0.15, 'sine', 0.08);
+    setTimeout(() => this.playSound(659, 0.15, 'sine', 0.08), 100);
+    setTimeout(() => this.playSound(784, 0.2, 'sine', 0.1), 200);
+    
     const reward = this.enemy.gold;
+    this.goldAnimTarget = this.gold + reward;
     this.gold += reward;
     this.kills++;
+    this.waveCleared = true;
 
     // Gold float animation
     this.showGoldGain(reward);
@@ -490,9 +581,16 @@ const Game = {
     this.wave++;
     this.renderAll();
     this.saveGame();
+    // Wave clear celebration
+    this.floatingTexts.push({
+      x: 200, y: 60, text: 'WAVE ' + (this.wave - 1) + ' CLEAR!',
+      life: 40, maxLife: 40, size: 22
+    });
+    
     this.spawnEnemy();
+    this.waveCleared = false;
 
-    // Auto-start next wave
+    // Auto-start next wave  
     setTimeout(() => this.startWave(), 1000);
   },
 
@@ -543,16 +641,31 @@ const Game = {
   useSkill(catIndex) {
     const cat = this.cats[catIndex];
     if (cat.hp <= 0 || !cat.skillReady) return;
+    
+    this.initAudio();
 
     const cls = this.classes[cat.cls];
-    const bonus = cat.evolved ? 1.5 : 1.0;
+    let bonus = cat.evolved ? 1.5 : 1.0;
+    
+    // Combo system: using skills in quick succession
+    if (this.comboTimer > 0) {
+      this.comboCount++;
+      bonus += this.comboCount * 0.3;
+      this.showMessage('COMBO x' + this.comboCount + '! +' + Math.round(this.comboCount*30) + '%');
+      this.playSound(600 + this.comboCount * 100, 0.15, 'sawtooth', 0.07);
+    } else {
+      this.comboCount = 0;
+      this.playSound(400, 0.1, 'square', 0.06);
+    }
+    this.comboTimer = 3; // 3 tick window for next combo
+    
     const multiplier = cls.skill.dmg + bonus;
     const dmg = Math.floor(cat.atk * multiplier);
 
     if (this.enemy && this.enemy.hp > 0) {
       this.enemy.hp = Math.max(0, this.enemy.hp - dmg);
       this.enemyFlash = 5;
-      this.screenShake = 4;
+      this.screenShake = 4 + this.comboCount;
       // Spawn skill particles
       for (let p = 0; p < 12; p++) {
         const angle = (Math.PI * 2 / 12) * p;
@@ -586,12 +699,19 @@ const Game = {
   },
 
   tickSkills() {
+    // Combo timer decay
+    if (this.comboTimer > 0) {
+      this.comboTimer--;
+      if (this.comboTimer <= 0) this.comboCount = 0;
+    }
+    
     this.cats.forEach(cat => {
       if (!cat.skillReady && cat.skillCd !== undefined) {
         cat.skillCd--;
         if (cat.skillCd <= 0) {
           cat.skillReady = true;
           cat.skillCd = undefined;
+          if (this.autoSkill && cat.hp > 0) this.useSkill(cat.id);
         }
       }
     });
@@ -792,7 +912,13 @@ const Game = {
     this.renderCats();
     this.renderEnemy();
     if (document.getElementById('tab-team').classList.contains('active')) this.renderTeamTab();
-    document.getElementById('gold').textContent = this.gold;
+        // Animated gold counter
+    if (this.goldAnimCurrent < this.gold) {
+      this.goldAnimCurrent += Math.max(1, Math.ceil((this.gold - this.goldAnimCurrent) / 5));
+      if (this.goldAnimCurrent > this.gold) this.goldAnimCurrent = this.gold;
+    }
+    if (this.goldAnimCurrent === 0) this.goldAnimCurrent = this.gold;
+    document.getElementById('gold').textContent = this.goldAnimCurrent;
     document.getElementById('wave').textContent = this.wave;
     document.getElementById('kills').textContent = this.kills;
     document.getElementById('prestige').textContent = this.prestige;
